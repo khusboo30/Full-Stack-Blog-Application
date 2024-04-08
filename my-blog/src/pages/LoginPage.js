@@ -21,7 +21,7 @@ const LoginPage = () => {
     return (
         <>
             <h1>Log In</h1>
-            {error && <p className="error"></p>}
+            {error && <p className="error">{error}</p>}
             <input
                 placeholder="Your email address"
                 value={email}
