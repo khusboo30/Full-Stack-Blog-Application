@@ -1,13 +1,13 @@
 import express from 'express';
 import { db, connecttoDb } from './db.js';
 import fs from 'fs';
-import admin from 'firebase/admin';
+import admin from 'firebase-admin';
 
 const credentials = JSON.parse(
-    fs.readFileSync('../credentials.json')
+    fs.readFileSync('./credentials.json')
 );
 // Initialize Firebase Admin SDK with the credentials file
-admin.intializeApp({
+admin.initializeApp({
     credential: admin.credential.cert(credentials),
 });
 
@@ -22,9 +22,10 @@ app.use(async (req, res, next) => {
             req.user = await admin.auth().verifyIdToken(authtoken);
         }
         catch (e) {
-            res.sendStatus(400);
+            return res.sendStatus(400);
         }
-    }    
+    } 
+    req.user=req.user || {};
     next();
 });
 
@@ -65,6 +66,7 @@ app.use((req, res, next) => {
 app.put('/api/articles/:name/upvote', async(req, res) => {
     const { name } = req.params;
     const article = await db.collection('articles').findOne({ name });
+    const { uid } = req.user;
     if (article) {
         const upvotesIds = article.upvoteIds || [];
         // Check if current user has already up votes
@@ -72,25 +74,23 @@ app.put('/api/articles/:name/upvote', async(req, res) => {
         if (canUpvote) {
             await db.collection('articles').updateOne({ name }, {
                 $inc: { upvotes: 1 },  //increments the upvote count by 1 for the article with the same name. $inc is one of the mongodb operators.
+                $push: { 'upvoteIds': uid },
             });
         }
-    }
-
-    if (article) {
-        res.json(article);
-    }
-    else {
+        const updatedArticle = await db.collection('articles').findOne({ name });
+        res.json(updatedArticle);
+    } else {
         res.send('The article doesn\'t exist');
     }
-   
 });
 
 app.post('/api/articles/:name/comments',async (req, res) => {
-    const { postedBy, text } = req.body;
+    const { text } = req.body;
     const { name } = req.params;
+    const { email } = req.user;
 
     await db.collection('articles').updateOne({ name }, {
-        $push: {comments: { postedBy, text },}
+        $push: {comments: { postedBy:email, text },}
     });
 
     const article = await db.collection('articles').findOne({ name });
